@@ -1,26 +1,126 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
-
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
+  --color-background: #000000;
+  --color-foreground: #e4e4e7;
+  --color-neon: #22c55e;
+  --color-neon-dim: #166534;
+  --color-surface: #0a0a0a;
+  --color-surface-hover: #141414;
+  --color-border: #1e1e1e;
+  --color-muted: #71717a;
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+/* ── Base ────────────────────────────────────── */
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  color-scheme: dark;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  margin: 0;
+  background: #000000;
+  color: #e4e4e7;
+  font-family: var(--font-sans), system-ui, -apple-system, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* ── Dot grid background ─────────────────────── */
+
+.bg-dot-grid {
+  background-image: radial-gradient(circle, #ffffff08 1px, transparent 1px);
+  background-size: 24px 24px;
+}
+
+/* ── Neon glow utilities ─────────────────────── */
+
+.glow-neon {
+  box-shadow:
+    0 0 8px #22c55e40,
+    0 0 24px #22c55e20,
+    0 0 48px #22c55e10;
+}
+
+.glow-neon-sm {
+  box-shadow:
+    0 0 4px #22c55e30,
+    0 0 12px #22c55e15;
+}
+
+.text-glow-neon {
+  text-shadow:
+    0 0 8px #22c55e60,
+    0 0 20px #22c55e30;
+}
+
+/* ── Scrollbar ───────────────────────────────── */
+
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #1e1e1e;
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #2a2a2a;
+}
+
+/* ── Transitions ─────────────────────────────── */
+
+.transition-base {
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* ── Fade-in animation ───────────────────────── */
+
+@keyframes fade-in-up {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fade-in-up {
+  animation: fade-in-up 0.6s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+}
+
+.animate-delay-100 { animation-delay: 0.1s; }
+.animate-delay-200 { animation-delay: 0.2s; }
+.animate-delay-300 { animation-delay: 0.3s; }
+.animate-delay-400 { animation-delay: 0.4s; }
+
+/* ── Pulse ring for welcome button ───────────── */
+
+@keyframes pulse-ring {
+  0% {
+    transform: scale(1);
+    opacity: 0.4;
+  }
+  100% {
+    transform: scale(1.5);
+    opacity: 0;
+  }
+}
+
+.animate-pulse-ring {
+  animation: pulse-ring 2s cubic-bezier(0.4, 0, 0.2, 1) infinite;
 }
