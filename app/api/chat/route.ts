@@ -41,10 +41,16 @@ export async function POST(
     // ── Ask the question ────────────────────────────────────
     const result = await askQuestion(body.repoId, question);
 
+    console.log(
+      `[chat/route] repoId=${body.repoId} model=${result.modelUsed} chunks=${result.chunksUsed} question="${question.slice(0, 60)}..."`
+    );
+
     return NextResponse.json({ success: true, data: result });
   } catch (err) {
     const message =
       err instanceof Error ? err.message : "Unknown error during chat";
+
+    console.error(`[chat/route] Error: ${message}`);
 
     // Use 404 for "repo not found" errors, 500 for everything else
     const status = message.includes("not found") ? 404 : 500;

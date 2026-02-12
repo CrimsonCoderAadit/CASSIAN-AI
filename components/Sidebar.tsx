@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { motion } from "framer-motion";
 
 interface NavItem {
   label: string;
@@ -51,11 +52,34 @@ const NAV_ITEMS: NavItem[] = [
   },
 ];
 
+const sidebarVariants = {
+  hidden: { x: -224, opacity: 0 },
+  visible: {
+    x: 0,
+    opacity: 1,
+    transition: { duration: 0.4, ease: [0.4, 0, 0.2, 1] as const },
+  },
+};
+
+const navItemVariants = {
+  hidden: { x: -16, opacity: 0 },
+  visible: (i: number) => ({
+    x: 0,
+    opacity: 1,
+    transition: { delay: 0.15 + i * 0.06, duration: 0.3, ease: "easeOut" as const },
+  }),
+};
+
 export default function Sidebar() {
   const pathname = usePathname();
 
   return (
-    <aside className="flex h-screen w-56 flex-col border-r border-border bg-surface">
+    <motion.aside
+      className="flex h-screen w-56 flex-col border-r border-border bg-surface transition-theme"
+      variants={sidebarVariants}
+      initial="hidden"
+      animate="visible"
+    >
       {/* Brand */}
       <div className="flex h-16 items-center gap-1.5 px-5">
         <span className="text-glow-neon text-lg font-bold tracking-[0.15em] text-neon">
@@ -68,42 +92,73 @@ export default function Sidebar() {
 
       {/* Navigation */}
       <nav className="flex flex-1 flex-col gap-1 px-3 pt-2">
-        {NAV_ITEMS.map((item) => {
+        {NAV_ITEMS.map((item, i) => {
           const isActive =
             pathname === item.href ||
             (item.href !== "/home" && pathname.startsWith(item.href));
 
           return (
-            <Link
+            <motion.div
               key={item.href}
-              href={item.href}
-              className={`group flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all duration-200 ${
-                isActive
-                  ? "glow-neon-sm bg-neon/10 text-neon"
-                  : "text-muted hover:bg-surface-hover hover:text-foreground"
-              }`}
+              custom={i}
+              variants={navItemVariants}
+              initial="hidden"
+              animate="visible"
             >
-              <span
-                className={`transition-colors duration-200 ${
+              <Link
+                href={item.href}
+                className={`group flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all duration-200 ${
                   isActive
-                    ? "text-neon"
-                    : "text-muted group-hover:text-foreground"
+                    ? "glow-neon-sm bg-neon/10 text-neon"
+                    : "text-muted hover:bg-surface-hover hover:text-foreground"
                 }`}
               >
-                {item.icon}
-              </span>
-              {item.label}
-            </Link>
+                <motion.span
+                  className={`transition-colors duration-200 ${
+                    isActive
+                      ? "text-neon"
+                      : "text-muted group-hover:text-foreground"
+                  }`}
+                  whileHover={{ scale: 1.15 }}
+                  transition={{ duration: 0.15 }}
+                >
+                  {item.icon}
+                </motion.span>
+                {item.label}
+              </Link>
+            </motion.div>
           );
         })}
       </nav>
 
-      {/* Footer */}
+      {/* Footer with glowing icon easter egg */}
       <div className="border-t border-border px-5 py-4">
-        <p className="text-[11px] tracking-wider text-muted/50">
-          CASSIAN v0.1.0
-        </p>
+        <div className="flex items-center justify-between">
+          <p className="text-[11px] tracking-wider text-muted/50">
+            CASSIAN v0.1.0
+          </p>
+          {/* Glowing icon — pulses on hover */}
+          <motion.div
+            className="group relative cursor-default"
+            whileHover={{ scale: 1.3 }}
+            transition={{ duration: 0.2 }}
+          >
+            <svg
+              width="12"
+              height="12"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              className="text-neon/20 transition-all duration-300 group-hover:text-neon group-hover:drop-shadow-[0_0_6px_rgba(var(--accent-rgb),0.5)]"
+            >
+              <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
+            </svg>
+          </motion.div>
+        </div>
       </div>
-    </aside>
+    </motion.aside>
   );
 }

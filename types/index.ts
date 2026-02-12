@@ -71,6 +71,21 @@ export interface ChatResponse {
   question: string;
   answer: string;
   chunksUsed: number;
+  /** Which Gemini model produced the answer, or "rule-based" / "fallback" */
+  modelUsed: string;
+}
+
+/** Request body for the /api/assistant-chat endpoint */
+export interface AssistantRequest {
+  question: string;
+}
+
+/** Response payload from the /api/assistant-chat endpoint */
+export interface AssistantResponse {
+  question: string;
+  answer: string;
+  /** "rule-based" for instant replies, or the Gemini model name */
+  modelUsed: string;
 }
 
 /** Standard API response envelope */

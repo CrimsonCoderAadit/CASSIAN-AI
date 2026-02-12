@@ -1,14 +1,51 @@
 @import "tailwindcss";
 
+/* ── Theme variables ────────────────────────── */
+
+html,
+.dark {
+  --accent: #22c55e;
+  --accent-dim: #166534;
+  --accent-rgb: 34, 197, 94;
+  --bg: #000000;
+  --bg-surface: #0a0a0a;
+  --bg-surface-hover: #141414;
+  --fg: #e4e4e7;
+  --fg-muted: #71717a;
+  --border-color: #1e1e1e;
+  --dot-color: #ffffff08;
+  --scrollbar-thumb: #1e1e1e;
+  --scrollbar-hover: #2a2a2a;
+  color-scheme: dark;
+}
+
+.light {
+  --accent: #ef4444;
+  --accent-dim: #991b1b;
+  --accent-rgb: 239, 68, 68;
+  --bg: #ffffff;
+  --bg-surface: #f5f5f5;
+  --bg-surface-hover: #e8e8e8;
+  --fg: #18181b;
+  --fg-muted: #71717a;
+  --border-color: #e4e4e7;
+  --dot-color: #00000008;
+  --scrollbar-thumb: #d4d4d8;
+  --scrollbar-hover: #a1a1aa;
+  color-scheme: light;
+}
+
+/* ── Tailwind v4 theme tokens ───────────────── */
+
 @theme inline {
-  --color-background: #000000;
-  --color-foreground: #e4e4e7;
-  --color-neon: #22c55e;
-  --color-neon-dim: #166534;
-  --color-surface: #0a0a0a;
-  --color-surface-hover: #141414;
-  --color-border: #1e1e1e;
-  --color-muted: #71717a;
+  --color-background: var(--bg);
+  --color-foreground: var(--fg);
+  --color-neon: var(--accent);
+  --color-neon-dim: var(--accent-dim);
+  --color-surface: var(--bg-surface);
+  --color-surface-hover: var(--bg-surface-hover);
+  --color-border: var(--border-color);
+  --color-muted: var(--fg-muted);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 }
@@ -19,23 +56,20 @@
   box-sizing: border-box;
 }
 
-html {
-  color-scheme: dark;
-}
-
 body {
   margin: 0;
-  background: #000000;
-  color: #e4e4e7;
+  background: var(--bg);
+  color: var(--fg);
   font-family: var(--font-sans), system-ui, -apple-system, sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  transition: background-color 0.35s ease, color 0.35s ease;
 }
 
 /* ── Dot grid background ─────────────────────── */
 
 .bg-dot-grid {
-  background-image: radial-gradient(circle, #ffffff08 1px, transparent 1px);
+  background-image: radial-gradient(circle, var(--dot-color) 1px, transparent 1px);
   background-size: 24px 24px;
 }
 
@@ -43,21 +77,21 @@ body {
 
 .glow-neon {
   box-shadow:
-    0 0 8px #22c55e40,
-    0 0 24px #22c55e20,
-    0 0 48px #22c55e10;
+    0 0 8px rgba(var(--accent-rgb), 0.25),
+    0 0 24px rgba(var(--accent-rgb), 0.12),
+    0 0 48px rgba(var(--accent-rgb), 0.06);
 }
 
 .glow-neon-sm {
   box-shadow:
-    0 0 4px #22c55e30,
-    0 0 12px #22c55e15;
+    0 0 4px rgba(var(--accent-rgb), 0.19),
+    0 0 12px rgba(var(--accent-rgb), 0.08);
 }
 
 .text-glow-neon {
   text-shadow:
-    0 0 8px #22c55e60,
-    0 0 20px #22c55e30;
+    0 0 8px rgba(var(--accent-rgb), 0.38),
+    0 0 20px rgba(var(--accent-rgb), 0.19);
 }
 
 /* ── Scrollbar ───────────────────────────────── */
@@ -72,18 +106,26 @@ body {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #1e1e1e;
+  background: var(--scrollbar-thumb);
   border-radius: 3px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #2a2a2a;
+  background: var(--scrollbar-hover);
 }
 
 /* ── Transitions ─────────────────────────────── */
 
 .transition-base {
   transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.transition-theme {
+  transition:
+    background-color 0.35s ease,
+    color 0.35s ease,
+    border-color 0.35s ease,
+    box-shadow 0.35s ease;
 }
 
 /* ── Fade-in animation ───────────────────────── */
@@ -123,4 +165,61 @@ body {
 
 .animate-pulse-ring {
   animation: pulse-ring 2s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+}
+
+/* ── Logo glow pulse ─────────────────────────── */
+
+@keyframes logo-glow {
+  0%, 100% {
+    text-shadow:
+      0 0 10px rgba(var(--accent-rgb), 0.4),
+      0 0 30px rgba(var(--accent-rgb), 0.2),
+      0 0 60px rgba(var(--accent-rgb), 0.1);
+  }
+  50% {
+    text-shadow:
+      0 0 20px rgba(var(--accent-rgb), 0.6),
+      0 0 50px rgba(var(--accent-rgb), 0.35),
+      0 0 100px rgba(var(--accent-rgb), 0.15);
+  }
+}
+
+.animate-logo-glow {
+  animation: logo-glow 3s ease-in-out infinite;
+}
+
+/* ── Easter egg orbit ────────────────────────── */
+
+@keyframes orbit {
+  from { transform: rotate(0deg) translateX(10px) rotate(0deg); }
+  to { transform: rotate(360deg) translateX(10px) rotate(-360deg); }
+}
+
+.animate-orbit {
+  animation: orbit 4s linear infinite;
+}
+
+.animate-orbit-reverse {
+  animation: orbit 5s linear infinite reverse;
+}
+
+.animate-orbit-slow {
+  animation: orbit 7s linear infinite;
+}
+
+/* ── Narnia shield glow (welcome page) ───── */
+
+@keyframes narnia-glow {
+  0%, 100% {
+    filter: drop-shadow(0 0 2px rgba(var(--accent-rgb), 0.15));
+    opacity: 0.3;
+  }
+  50% {
+    filter: drop-shadow(0 0 8px rgba(var(--accent-rgb), 0.4));
+    opacity: 0.55;
+  }
+}
+
+.animate-narnia-glow {
+  animation: narnia-glow 4s ease-in-out infinite;
 }

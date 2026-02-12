@@ -2,14 +2,30 @@
 
 import { useState, useRef, useEffect } from "react";
 import Image from "next/image";
+import { motion, AnimatePresence } from "framer-motion";
 import { useAuth } from "@/context/AuthContext";
+
+const dropdownVariants = {
+  hidden: { opacity: 0, scale: 0.95, y: -4 },
+  visible: {
+    opacity: 1,
+    scale: 1,
+    y: 0,
+    transition: { duration: 0.15, ease: "easeOut" as const },
+  },
+  exit: {
+    opacity: 0,
+    scale: 0.95,
+    y: -4,
+    transition: { duration: 0.1, ease: "easeIn" as const },
+  },
+};
 
 export default function UserMenu() {
   const { user, signOut } = useAuth();
   const [open, setOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
-  // Close dropdown on outside click
   useEffect(() => {
     function handleClick(e: MouseEvent) {
       if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
@@ -27,9 +43,10 @@ export default function UserMenu() {
   return (
     <div ref={menuRef} className="relative">
       {/* Avatar button */}
-      <button
+      <motion.button
         onClick={() => setOpen((v) => !v)}
         className="flex items-center gap-2 rounded-full border border-border bg-surface p-0.5 transition-all duration-200 hover:border-neon/30"
+        whileTap={{ scale: 0.93 }}
       >
         {user.photoURL ? (
           <Image
@@ -45,40 +62,49 @@ export default function UserMenu() {
             {initial}
           </div>
         )}
-      </button>
+      </motion.button>
 
       {/* Dropdown */}
-      {open && (
-        <div className="absolute right-0 top-full z-50 mt-2 w-64 overflow-hidden rounded-xl border border-border bg-surface shadow-lg shadow-black/50">
-          {/* User info */}
-          <div className="border-b border-border px-4 py-3">
-            <p className="truncate text-sm font-medium text-foreground">
-              {user.displayName ?? "User"}
-            </p>
-            <p className="truncate text-xs text-muted">
-              {user.email}
-            </p>
-          </div>
+      <AnimatePresence>
+        {open && (
+          <motion.div
+            className="absolute right-0 top-full z-50 mt-2 w-64 overflow-hidden rounded-xl border border-border bg-surface shadow-lg shadow-black/20"
+            variants={dropdownVariants}
+            initial="hidden"
+            animate="visible"
+            exit="exit"
+          >
+            {/* User info */}
+            <div className="border-b border-border px-4 py-3">
+              <p className="truncate text-sm font-medium text-foreground">
+                {user.displayName ?? "User"}
+              </p>
+              <p className="truncate text-xs text-muted">
+                {user.email}
+              </p>
+            </div>
 
-          {/* Actions */}
-          <div className="p-1.5">
-            <button
-              onClick={async () => {
-                setOpen(false);
-                await signOut();
-              }}
-              className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-sm text-muted transition-colors duration-150 hover:bg-surface-hover hover:text-foreground"
-            >
-              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
-                <polyline points="16 17 21 12 16 7" />
-                <line x1="21" x2="9" y1="12" y2="12" />
-              </svg>
-              Log out
-            </button>
-          </div>
-        </div>
-      )}
+            {/* Actions */}
+            <div className="p-1.5">
+              <motion.button
+                onClick={async () => {
+                  setOpen(false);
+                  await signOut();
+                }}
+                className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-sm text-muted transition-colors duration-150 hover:bg-surface-hover hover:text-foreground"
+                whileTap={{ scale: 0.97 }}
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+                  <polyline points="16 17 21 12 16 7" />
+                  <line x1="21" x2="9" y1="12" y2="12" />
+                </svg>
+                Log out
+              </motion.button>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

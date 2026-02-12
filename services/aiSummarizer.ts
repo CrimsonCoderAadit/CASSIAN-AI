@@ -1,62 +1,115 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import type { FileChunk, FileSummary, RepoSummary } from "@/types";
 
-// ── Gemini client ───────────────────────────────────────────
+// ── Gemini multi-model engine ─────────────────────────────────
 
 const apiKey = process.env.GEMINI_API_KEY;
 
-function getModel() {
-  if (!apiKey) {
-    throw new Error("GEMINI_API_KEY is not set in environment variables");
-  }
-  const genAI = new GoogleGenerativeAI(apiKey);
-  return genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
-}
-
-// ── Configuration ───────────────────────────────────────────
-
-/** Max chunks to send per batch when summarising files */
-const FILE_BATCH_SIZE = 15;
-
-/** Max total chars of chunk content per batch (stay well under Gemini's limit) */
-const BATCH_CHAR_LIMIT = 60_000;
-
-/** Max file summaries to feed into the repo-level overview prompt */
-const OVERVIEW_SUMMARY_LIMIT = 80;
-
-// ── Helpers ─────────────────────────────────────────────────
-
 /**
- * Call Gemini with a prompt and return the text response.
- * Returns a fallback string on any error so callers never throw.
+ * Ordered list of Gemini models to try. If the first model fails,
+ * the next one is attempted, and so on.
  */
-async function callGemini(
-  prompt: string,
-  fallback: string
-): Promise<string> {
-  try {
-    const model = getModel();
-    const result = await model.generateContent({
-      contents: [{ role: "user", parts: [{ text: prompt }] }],
-      generationConfig: {
-        temperature: 0.3,
-        maxOutputTokens: 2048,
-      },
-    });
-    const text = result.response.text();
-    return text.trim() || fallback;
-  } catch (err) {
-    console.error("[aiSummarizer] Gemini call failed:", err);
-    return fallback;
-  }
+const MODEL_CASCADE = [
+  "gemini-1.5-flash",
+  "gemini-1.5-pro",
+  "gemini-2.0-flash",
+  "gemini-2.0-flash-lite",
+] as const;
+
+/** Result returned by the multi-model caller */
+export interface GeminiResult {
+  text: string;
+  model: string;
 }
 
 /**
- * Wait for `ms` milliseconds. Used between batches to avoid rate limits.
+ * Sleep for `ms` milliseconds.
  */
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
+
+/**
+ * Call Gemini with automatic model fallback and one retry per model.
+ *
+ * Tries each model in MODEL_CASCADE. For each model it makes up to 2
+ * attempts (initial + one retry with exponential backoff).
+ * Returns the first successful response.
+ *
+ * If all models fail, returns the fallback string.
+ */
+export async function callGeminiWithFallback(
+  prompt: string,
+  fallback: string,
+  opts: { temperature?: number; maxOutputTokens?: number } = {}
+): Promise<GeminiResult> {
+  if (!apiKey) {
+    console.error("[gemini] GEMINI_API_KEY is not set");
+    return { text: fallback, model: "fallback" };
+  }
+
+  const genAI = new GoogleGenerativeAI(apiKey);
+  const temperature = opts.temperature ?? 0.3;
+  const maxOutputTokens = opts.maxOutputTokens ?? 2048;
+
+  for (const modelName of MODEL_CASCADE) {
+    const model = genAI.getGenerativeModel({ model: modelName });
+
+    // Up to 2 attempts per model (initial + 1 retry)
+    for (let attempt = 0; attempt < 2; attempt++) {
+      try {
+        if (attempt > 0) {
+          const backoff = 1000 * Math.pow(2, attempt);
+          console.log(`[gemini] Retrying ${modelName} after ${backoff}ms (attempt ${attempt + 1})`);
+          await sleep(backoff);
+        }
+
+        const result = await model.generateContent({
+          contents: [{ role: "user", parts: [{ text: prompt }] }],
+          generationConfig: { temperature, maxOutputTokens },
+        });
+
+        const text = result.response.text().trim();
+        if (text) {
+          console.log(`[gemini] Success with model=${modelName} (attempt ${attempt + 1})`);
+          return { text, model: modelName };
+        }
+
+        // Empty response — treat as failure, try next attempt/model
+        console.warn(`[gemini] Empty response from ${modelName} (attempt ${attempt + 1})`);
+      } catch (err) {
+        const errMsg = err instanceof Error ? err.message : String(err);
+        console.error(`[gemini] ${modelName} attempt ${attempt + 1} failed: ${errMsg}`);
+
+        // If it's a non-retryable error (e.g. invalid API key), break out of retries
+        if (errMsg.includes("API_KEY_INVALID") || errMsg.includes("PERMISSION_DENIED")) {
+          console.error("[gemini] Non-retryable error, aborting all models");
+          return { text: fallback, model: "fallback" };
+        }
+      }
+    }
+
+    console.warn(`[gemini] All attempts exhausted for ${modelName}, trying next model`);
+  }
+
+  console.error("[gemini] All models exhausted. Using fallback.");
+  return { text: fallback, model: "fallback" };
+}
+
+/**
+ * Simplified wrapper matching the old `callGemini` signature for backwards compatibility.
+ * Returns just the text string.
+ */
+async function callGemini(prompt: string, fallback: string): Promise<string> {
+  const result = await callGeminiWithFallback(prompt, fallback);
+  return result.text;
+}
+
+// ── Configuration ───────────────────────────────────────────
+
+const FILE_BATCH_SIZE = 15;
+const BATCH_CHAR_LIMIT = 60_000;
+const OVERVIEW_SUMMARY_LIMIT = 80;
 
 // ── Group chunks by file ────────────────────────────────────
 
@@ -66,9 +119,6 @@ interface GroupedFile {
   chunks: string[];
 }
 
-/**
- * Merge chunks back into per-file groups for summarisation.
- */
 function groupChunksByFile(chunks: FileChunk[]): GroupedFile[] {
   const map = new Map<string, GroupedFile>();
 
@@ -86,9 +136,6 @@ function groupChunksByFile(chunks: FileChunk[]): GroupedFile[] {
 
 // ── File-level summaries ────────────────────────────────────
 
-/**
- * Build a prompt that asks Gemini to summarise one or more files in a batch.
- */
 function buildFileBatchPrompt(batch: GroupedFile[]): string {
   const fileBlocks = batch
     .map((f) => {
@@ -110,10 +157,6 @@ Return your answer as a numbered list in this exact format (one entry per file, 
 ${fileBlocks}`;
 }
 
-/**
- * Parse the numbered-list response from Gemini back into FileSummary objects.
- * Falls back to a generic summary if parsing fails for a file.
- */
 function parseBatchResponse(
   raw: string,
   batch: GroupedFile[]
@@ -121,7 +164,6 @@ function parseBatchResponse(
   const summaries: FileSummary[] = [];
 
   for (const file of batch) {
-    // Try to find a line that contains this file path
     const escaped = file.filePath.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
     const re = new RegExp(`\\*\\*${escaped}\\*\\*:\\s*(.+)`, "i");
     const match = raw.match(re);
@@ -136,15 +178,11 @@ function parseBatchResponse(
   return summaries;
 }
 
-/**
- * Summarise all files in batches and return a flat array of FileSummary.
- */
 async function summariseAllFiles(
   groups: GroupedFile[]
 ): Promise<FileSummary[]> {
   const allSummaries: FileSummary[] = [];
 
-  // Build batches respecting both count and char limits
   const batches: GroupedFile[][] = [];
   let currentBatch: GroupedFile[] = [];
   let currentChars = 0;
@@ -179,7 +217,6 @@ async function summariseAllFiles(
     const parsed = parseBatchResponse(raw, batch);
     allSummaries.push(...parsed);
 
-    // Brief pause between batches to avoid rate-limiting
     if (i < batches.length - 1) {
       await sleep(500);
     }
@@ -190,9 +227,6 @@ async function summariseAllFiles(
 
 // ── Repo-level overview ─────────────────────────────────────
 
-/**
- * Build a prompt that asks Gemini for a high-level project overview.
- */
 function buildOverviewPrompt(
   repoName: string,
   fileSummaries: FileSummary[]
@@ -216,9 +250,6 @@ Provide a concise project overview in 3-5 sentences. Cover:
 Be technical but clear. Do not list individual files.`;
 }
 
-/**
- * Build a prompt for an architecture analysis.
- */
 function buildArchitecturePrompt(
   repoName: string,
   fileSummaries: FileSummary[]
@@ -244,13 +275,6 @@ Be specific to this codebase. Do not list every file.`;
 
 // ── Public API ──────────────────────────────────────────────
 
-/**
- * Generate a complete RepoSummary: per-file summaries + project overview + architecture.
- *
- * This is the main entry point called by the upload route.
- * Fails safely — if Gemini is unreachable the summaries will contain
- * fallback text rather than throwing.
- */
 export async function summarizeRepo(
   repoId: string,
   repoName: string,
@@ -259,7 +283,6 @@ export async function summarizeRepo(
   const groups = groupChunksByFile(chunks);
   const fileSummaries = await summariseAllFiles(groups);
 
-  // Run overview and architecture prompts in parallel
   const [overview, architecture] = await Promise.all([
     callGemini(
       buildOverviewPrompt(repoName, fileSummaries),
