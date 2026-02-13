@@ -33,6 +33,8 @@ async function processRepo(
       fileCount: files.length,
       chunkCount: chunks.length,
       files,
+      parsedFiles: parsed,
+      chunks,
       repoSummary: summary.overview,
       architecture: summary.architecture,
     },
@@ -47,24 +49,48 @@ export async function POST(
   try {
     const contentType = request.headers.get("content-type") ?? "";
 
-    // ── GitHub URL (JSON body) ──────────────────────────────
+    // ── JSON body (GitHub URL or TEXT upload) ──────────────
     if (contentType.includes("application/json")) {
-      const body = (await request.json()) as { github_url?: string };
+      const body = (await request.json()) as {
+        github_url?: string;
+        rawText?: string;
+        name?: string;
+      };
 
-      if (!body.github_url || typeof body.github_url !== "string") {
-        return NextResponse.json(
-          { success: false, error: "Missing or invalid `github_url` field" },
-          { status: 400 }
+      // TEXT upload with rawText
+      if (body.rawText && typeof body.rawText === "string") {
+        const projectName = body.name || "text-upload";
+
+        const { result, localPath: lp } = await processRepo(
+          "text",
+          body.rawText,
+          projectName
         );
+        localPath = lp;
+
+        return NextResponse.json({ success: true, data: result });
       }
 
-      const { result, localPath: lp } = await processRepo(
-        "github",
-        body.github_url
-      );
-      localPath = lp;
+      // GitHub URL upload
+      if (body.github_url && typeof body.github_url === "string") {
+        const { result, localPath: lp } = await processRepo(
+          "github",
+          body.github_url
+        );
+        localPath = lp;
 
-      return NextResponse.json({ success: true, data: result });
+        return NextResponse.json({ success: true, data: result });
+      }
+
+      // Neither field provided
+      return NextResponse.json(
+        {
+          success: false,
+          error:
+            "Missing required field. Provide either `github_url` or `rawText` with `name`.",
+        },
+        { status: 400 }
+      );
     }
 
     // ── ZIP upload (multipart form-data) ────────────────────
@@ -106,7 +132,7 @@ export async function POST(
       {
         success: false,
         error:
-          "Unsupported Content-Type. Send JSON with `github_url` or multipart form-data with a `file` field.",
+          "Unsupported Content-Type. Send JSON with `github_url` or `rawText`, or multipart form-data with a `file` field.",
       },
       { status: 415 }
     );

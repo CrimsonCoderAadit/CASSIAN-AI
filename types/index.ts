@@ -3,7 +3,7 @@
 // ──────────────────────────────────────────────
 
 /** Supported ingestion sources */
-export type UploadSource = "github" | "zip";
+export type UploadSource = "github" | "zip" | "text";
 
 /** Project source types */
 export type ProjectSource = "github" | "text" | "zip";
@@ -58,6 +58,8 @@ export interface UploadResult {
   fileCount: number;
   chunkCount: number;
   files: string[];
+  parsedFiles: ParsedFile[];
+  chunks: FileChunk[];
   repoSummary: string;
   architecture: string;
 }

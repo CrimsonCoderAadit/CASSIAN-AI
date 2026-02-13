@@ -3,9 +3,11 @@
 import { motion } from "framer-motion";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { deleteDoc, doc } from "firebase/firestore";
 import AppLayout from "@/components/Layout";
 import { useAuth } from "@/context/AuthContext";
 import { getProjects } from "@/services/projectStore";
+import { db } from "@/lib/firebase";
 import type { Project } from "@/types";
 
 export default function RepositoriesPage() {
@@ -13,6 +15,7 @@ export default function RepositoriesPage() {
   const router = useRouter();
   const [projects, setProjects] = useState<Project[]>([]);
   const [loadingProjects, setLoadingProjects] = useState(true);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   useEffect(() => {
     if (!loading && !user) {
@@ -34,6 +37,28 @@ export default function RepositoriesPage() {
     }
     loadProjects();
   }, [user]);
+
+  async function handleDelete(projectId: string, e: React.MouseEvent) {
+    e.stopPropagation();
+
+    if (!confirm("Are you sure you want to delete this project? This action cannot be undone.")) {
+      return;
+    }
+
+    setDeletingId(projectId);
+    try {
+      // Delete directly from Firestore
+      await deleteDoc(doc(db, "projects", projectId));
+
+      // Remove from local state
+      setProjects((prev) => prev.filter((p) => p.id !== projectId));
+    } catch (error) {
+      console.error("Delete error:", error);
+      alert(error instanceof Error ? error.message : "Failed to delete project");
+    } finally {
+      setDeletingId(null);
+    }
+  }
 
   if (!user) return null;
 
@@ -143,6 +168,15 @@ export default function RepositoriesPage() {
                         </svg>
                         GitHub
                       </>
+                    ) : project.source === "zip" ? (
+                      <>
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                          <polyline points="17 8 12 3 7 8" />
+                          <line x1="12" x2="12" y1="3" y2="15" />
+                        </svg>
+                        ZIP
+                      </>
                     ) : (
                       <>
                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -153,6 +187,26 @@ export default function RepositoriesPage() {
                       </>
                     )}
                   </div>
+
+                  {/* Delete button */}
+                  <motion.button
+                    onClick={(e) => handleDelete(project.id, e)}
+                    disabled={deletingId === project.id}
+                    className="rounded-full p-1.5 text-muted transition-colors hover:bg-red-500/10 hover:text-red-500 disabled:opacity-50"
+                    whileHover={{ scale: 1.1 }}
+                    whileTap={{ scale: 0.9 }}
+                    title="Delete project"
+                  >
+                    {deletingId === project.id ? (
+                      <div className="h-4 w-4 animate-spin rounded-full border-2 border-red-500/20 border-t-red-500" />
+                    ) : (
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M3 6h18" />
+                        <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6" />
+                        <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" />
+                      </svg>
+                    )}
+                  </motion.button>
                 </div>
 
                 {/* Project name */}
@@ -165,15 +219,25 @@ export default function RepositoriesPage() {
                   Created {new Date(project.createdAt).toLocaleDateString()}
                 </p>
 
-                {/* Open button */}
-                <motion.button
-                  onClick={() => router.push(`/chat?project=${project.id}`)}
-                  className="w-full rounded-lg border border-neon/50 bg-neon/10 py-2 text-sm font-semibold text-neon transition-all hover:bg-neon/20"
-                  whileHover={{ scale: 1.02 }}
-                  whileTap={{ scale: 0.98 }}
-                >
-                  Open Project
-                </motion.button>
+                {/* Buttons */}
+                <div className="flex gap-2">
+                  <motion.button
+                    onClick={() => router.push(`/repositories/${project.id}`)}
+                    className="flex-1 rounded-lg border border-neon/50 bg-neon/10 py-2 text-sm font-semibold text-neon transition-all hover:bg-neon/20"
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
+                  >
+                    View
+                  </motion.button>
+                  <motion.button
+                    onClick={() => router.push(`/chat?project=${project.id}`)}
+                    className="flex-1 rounded-lg border border-border bg-background py-2 text-sm font-semibold text-foreground transition-all hover:border-neon/30 hover:bg-surface"
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
+                  >
+                    Chat
+                  </motion.button>
+                </div>
               </motion.div>
             ))}
           </motion.div>

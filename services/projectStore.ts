@@ -7,6 +7,7 @@ import {
   query,
   where,
   orderBy,
+  deleteDoc,
   Timestamp,
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
@@ -103,4 +104,12 @@ export async function getProjectById(projectId: string): Promise<Project | null>
     summary: data.summary || undefined,
     architecture: data.architecture || undefined,
   };
+}
+
+/**
+ * Delete a project by ID
+ */
+export async function deleteProject(projectId: string): Promise<void> {
+  const docRef = doc(db, PROJECTS_COLLECTION, projectId);
+  await deleteDoc(docRef);
 }

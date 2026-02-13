@@ -40,6 +40,40 @@ function repoNameFromZip(fileName: string): string {
 }
 
 /**
+ * Create a single-file project from raw text.
+ */
+export async function createTextProject(
+  rawText: string,
+  projectName: string
+): Promise<LoadResult> {
+  await ensureReposDir();
+
+  const repoId = uuidv4();
+  const repoName = projectName || "text-upload";
+  const localPath = path.join(REPOS_ROOT, repoId);
+
+  await fs.mkdir(localPath, { recursive: true });
+
+  // Detect file extension from content (simple heuristic)
+  let extension = ".txt";
+  if (rawText.includes("function ") || rawText.includes("const ") || rawText.includes("import ")) {
+    extension = ".js";
+  } else if (rawText.includes("def ") || rawText.includes("import ")) {
+    extension = ".py";
+  } else if (rawText.includes("package ") || rawText.includes("func ")) {
+    extension = ".go";
+  } else if (rawText.includes("class ") && rawText.includes("public ")) {
+    extension = ".java";
+  }
+
+  const fileName = `main${extension}`;
+  const filePath = path.join(localPath, fileName);
+  await fs.writeFile(filePath, rawText, "utf-8");
+
+  return { localPath, repoName, repoId };
+}
+
+/**
  * Validate that a string looks like a GitHub HTTPS URL.
  */
 function isValidGitHubUrl(url: string): boolean {
@@ -130,6 +164,8 @@ export async function loadRepo(
       return cloneRepo(payload as string);
     case "zip":
       return extractZip(payload as Buffer, fileName ?? "upload.zip");
+    case "text":
+      return createTextProject(payload as string, fileName ?? "text-upload");
     default:
       throw new Error(`Unsupported upload source: ${source as string}`);
   }

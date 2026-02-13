@@ -67,29 +67,48 @@ export default function UploadPage() {
 
     try {
       // Call /api/upload to process the code
-      const formData = new FormData();
-      if (sourceTab === "github") {
-        formData.append("source", "github");
-        formData.append("githubUrl", githubUrl.trim());
-      } else if (sourceTab === "text") {
-        formData.append("source", "text");
-        formData.append("rawCode", rawCode.trim());
-      } else if (sourceTab === "zip" && zipFile) {
-        formData.append("source", "zip");
-        formData.append("file", zipFile);
-      }
+      let res: Response;
 
-      const res = await fetch("/api/upload", {
-        method: "POST",
-        body: formData,
-      });
+      if (sourceTab === "github") {
+        // GitHub URL → Send JSON
+        res = await fetch("/api/upload", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ github_url: githubUrl.trim() }),
+        });
+      } else if (sourceTab === "text") {
+        // TEXT → Send JSON with rawText and name
+        res = await fetch("/api/upload", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            rawText: rawCode.trim(),
+            name: trimmedName,
+          }),
+        });
+      } else if (sourceTab === "zip" && zipFile) {
+        // ZIP → Send FormData with file
+        const formData = new FormData();
+        formData.append("file", zipFile);
+        res = await fetch("/api/upload", {
+          method: "POST",
+          body: formData,
+        });
+      } else {
+        throw new Error("Invalid upload configuration");
+      }
 
       if (!res.ok) {
         const errorData = await res.json().catch(() => ({ error: "Upload failed" }));
         throw new Error(errorData.error || `Upload failed: ${res.statusText}`);
       }
 
-      const uploadResult: UploadResult = await res.json();
+      const result = await res.json();
+      if (!result.success || !result.data) {
+        throw new Error(result.error || "Upload failed");
+      }
+
+      const uploadResult: UploadResult = result.data;
 
       // Save project to Firestore
       await createProject({
@@ -98,6 +117,8 @@ export default function UploadPage() {
         source: sourceTab,
         githubUrl: sourceTab === "github" ? githubUrl.trim() : undefined,
         rawCode: sourceTab === "text" ? rawCode.trim() : undefined,
+        parsedFiles: uploadResult.parsedFiles,
+        chunks: uploadResult.chunks,
         summary: uploadResult.repoSummary,
         architecture: uploadResult.architecture,
       });
