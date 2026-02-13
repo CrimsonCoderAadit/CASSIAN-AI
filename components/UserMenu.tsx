@@ -22,7 +22,7 @@ const dropdownVariants = {
 };
 
 export default function UserMenu() {
-  const { user, signOut } = useAuth();
+  const { user } = useAuth();
   const [open, setOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
@@ -75,32 +75,16 @@ export default function UserMenu() {
             exit="exit"
           >
             {/* User info */}
-            <div className="border-b border-border px-4 py-3">
+            <div className="px-4 py-3">
               <p className="truncate text-sm font-medium text-foreground">
                 {user.displayName ?? "User"}
               </p>
               <p className="truncate text-xs text-muted">
                 {user.email}
               </p>
-            </div>
-
-            {/* Actions */}
-            <div className="p-1.5">
-              <motion.button
-                onClick={async () => {
-                  setOpen(false);
-                  await signOut();
-                }}
-                className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-sm text-muted transition-colors duration-150 hover:bg-surface-hover hover:text-foreground"
-                whileTap={{ scale: 0.97 }}
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
-                  <polyline points="16 17 21 12 16 7" />
-                  <line x1="21" x2="9" y1="12" y2="12" />
-                </svg>
-                Log out
-              </motion.button>
+              <p className="mt-2 text-xs text-muted/60">
+                Use sidebar for profile and logout
+              </p>
             </div>
           </motion.div>
         )}

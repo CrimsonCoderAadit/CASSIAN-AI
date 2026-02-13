@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { AuthProvider } from "@/context/AuthContext";
 import { ThemeProvider } from "@/context/ThemeContext";
+import { AppearanceProvider } from "@/context/AppearanceContext";
 import GlobalVisualLayer from "@/components/GlobalVisualLayer";
 import "./globals.css";
 
@@ -41,10 +42,12 @@ export default function RootLayout({
       >
         <AuthProvider>
           <ThemeProvider>
-            {/* Global visual effects — starfield, scanlines, easter egg */}
-            <GlobalVisualLayer />
-            {/* Page content renders above the global layer */}
-            <div className="relative z-10">{children}</div>
+            <AppearanceProvider>
+              {/* Global visual effects — lightweight scanlines only */}
+              <GlobalVisualLayer />
+              {/* Page content renders above the global layer */}
+              <div className="relative z-10">{children}</div>
+            </AppearanceProvider>
           </ThemeProvider>
         </AuthProvider>
       </body>

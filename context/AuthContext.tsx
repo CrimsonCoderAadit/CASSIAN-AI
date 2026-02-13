@@ -46,7 +46,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const signOut = useCallback(async () => {
-    await firebaseSignOut(auth);
+    try {
+      // Kill Firebase session
+      await firebaseSignOut(auth);
+
+      // Clear React auth state
+      setUser(null);
+
+      // Clear cached Firebase login
+      sessionStorage.clear();
+      localStorage.removeItem("firebase:authUser");
+
+      // Force redirect to Welcome page
+      window.location.replace("/");
+    } catch (error) {
+      console.error("Logout error:", error);
+    }
   }, []);
 
   return (

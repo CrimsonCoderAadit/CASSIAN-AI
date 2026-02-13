@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import TypingText from "@/components/TypingText";
 
 // ── Types ────────────────────────────────────────────────────
 
@@ -32,10 +33,12 @@ export default function AssistantPanel() {
   ]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
+  const [latestAssistantId, setLatestAssistantId] = useState<string>("welcome");
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
+  const typingIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
   // Auto-scroll to bottom on new messages
   useEffect(() => {
@@ -43,6 +46,25 @@ export default function AssistantPanel() {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
   }, [messages]);
+
+  // Auto-scroll during typing animation
+  useEffect(() => {
+    if (typingIntervalRef.current) {
+      clearInterval(typingIntervalRef.current);
+    }
+
+    typingIntervalRef.current = setInterval(() => {
+      if (scrollRef.current) {
+        scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+      }
+    }, 100);
+
+    return () => {
+      if (typingIntervalRef.current) {
+        clearInterval(typingIntervalRef.current);
+      }
+    };
+  }, [latestAssistantId]);
 
   // Focus input when panel opens
   useEffect(() => {
@@ -127,15 +149,19 @@ export default function AssistantPanel() {
           ? json.data.answer
           : "Sorry, I couldn't get a response. Try again in a moment.";
 
+      const assistantId = `asst-${Date.now()}`;
+      setLatestAssistantId(assistantId);
       setMessages((prev) => [
         ...prev,
-        { id: `asst-${Date.now()}`, role: "assistant", text: answer },
+        { id: assistantId, role: "assistant", text: answer },
       ]);
     } catch {
+      const errorId = `err-${Date.now()}`;
+      setLatestAssistantId(errorId);
       setMessages((prev) => [
         ...prev,
         {
-          id: `err-${Date.now()}`,
+          id: errorId,
           role: "assistant",
           text: "Something went wrong reaching the server. Please try again.",
         },
@@ -216,22 +242,29 @@ export default function AssistantPanel() {
               ref={scrollRef}
               className="flex-1 overflow-y-auto px-4 py-3 space-y-3"
             >
-              {messages.map((msg) => (
-                <div
-                  key={msg.id}
-                  className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}
-                >
+              {messages.map((msg) => {
+                const isLatestAssistant = msg.role === "assistant" && msg.id === latestAssistantId;
+                return (
                   <div
-                    className={`max-w-[85%] rounded-lg px-3 py-2 text-sm leading-relaxed ${
-                      msg.role === "user"
-                        ? "bg-neon/15 text-foreground"
-                        : "bg-surface-hover text-foreground"
-                    }`}
+                    key={msg.id}
+                    className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}
                   >
-                    <MessageContent text={msg.text} />
+                    <div
+                      className={`max-w-[85%] rounded-lg px-3 py-2 text-sm leading-relaxed ${
+                        msg.role === "user"
+                          ? "bg-neon/15 text-foreground"
+                          : "bg-surface-hover text-foreground"
+                      }`}
+                    >
+                      {isLatestAssistant ? (
+                        <MessageContentTyping text={msg.text} />
+                      ) : (
+                        <MessageContent text={msg.text} />
+                      )}
+                    </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
 
               {/* Typing indicator */}
               {loading && (
@@ -329,4 +362,10 @@ function MessageContent({ text }: { text: string }) {
       })}
     </div>
   );
+}
+
+// ── Message content with typing animation ────────────────────
+
+function MessageContentTyping({ text }: { text: string }) {
+  return <TypingText text={text} speed={60} className="inline-block" />;
 }

@@ -1,8 +1,13 @@
 "use client";
 
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useRef, useEffect, useCallback, Suspense } from "react";
+import { useSearchParams, useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import AppLayout from "@/components/Layout";
+import TypingText from "@/components/TypingText";
+import { useAuth } from "@/context/AuthContext";
+import { getProjects, getProjectById } from "@/services/projectStore";
+import type { Project } from "@/types";
 
 // ── Types ────────────────────────────────────────────────────
 
@@ -93,17 +98,72 @@ function MessageContent({ text }: { text: string }) {
   );
 }
 
+// ── Message content with typing animation ────────────────────
+
+function MessageContentTyping({ text }: { text: string }) {
+  return <TypingText text={text} speed={60} className="inline-block" />;
+}
+
 // ── Page component ───────────────────────────────────────────
 
-export default function ChatPage() {
+function ChatPageContent() {
+  const { user, loading: authLoading } = useAuth();
+  const searchParams = useSearchParams();
+  const router = useRouter();
+
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
-  const [repoId] = useState<string | null>(null);
   const [sparkle, setSparkle] = useState(false);
+  const [latestAssistantId, setLatestAssistantId] = useState<string | null>(null);
+
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [selectedProject, setSelectedProject] = useState<Project | null>(null);
+  const [loadingProjects, setLoadingProjects] = useState(true);
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const typingIntervalRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Load projects on mount
+  useEffect(() => {
+    async function loadProjects() {
+      if (!user) return;
+      try {
+        const userProjects = await getProjects(user.uid);
+        setProjects(userProjects);
+      } catch (error) {
+        console.error("Failed to load projects:", error);
+      } finally {
+        setLoadingProjects(false);
+      }
+    }
+    loadProjects();
+  }, [user]);
+
+  // Load project from URL parameter
+  useEffect(() => {
+    const projectId = searchParams.get("project");
+    if (!projectId) {
+      setSelectedProject(null);
+      return;
+    }
+
+    async function loadProject(id: string) {
+      try {
+        const project = await getProjectById(id);
+        if (project) {
+          setSelectedProject(project);
+        } else {
+          setSelectedProject(null);
+        }
+      } catch (error) {
+        console.error("Failed to load project:", error);
+        setSelectedProject(null);
+      }
+    }
+    loadProject(projectId);
+  }, [searchParams]);
 
   // Auto-scroll on new messages
   useEffect(() => {
@@ -111,6 +171,27 @@ export default function ChatPage() {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
   }, [messages]);
+
+  // Auto-scroll during typing animation
+  useEffect(() => {
+    if (typingIntervalRef.current) {
+      clearInterval(typingIntervalRef.current);
+    }
+
+    if (latestAssistantId) {
+      typingIntervalRef.current = setInterval(() => {
+        if (scrollRef.current) {
+          scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+        }
+      }, 100);
+    }
+
+    return () => {
+      if (typingIntervalRef.current) {
+        clearInterval(typingIntervalRef.current);
+      }
+    };
+  }, [latestAssistantId]);
 
   // Caspian sparkle easter egg
   const handleInputChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
@@ -143,9 +224,9 @@ export default function ChatPage() {
     setLoading(true);
 
     try {
-      const endpoint = repoId ? "/api/chat" : "/api/assistant-chat";
-      const body = repoId
-        ? { repoId, question: text }
+      const endpoint = selectedProject ? "/api/chat" : "/api/assistant-chat";
+      const body = selectedProject
+        ? { repoId: selectedProject.id, question: text }
         : { question: text };
 
       const res = await fetch(endpoint, {
@@ -161,15 +242,19 @@ export default function ChatPage() {
           ? json.data.answer
           : "Sorry, I couldn't get a response. Try again in a moment.";
 
+      const assistantId = `asst-${Date.now()}`;
+      setLatestAssistantId(assistantId);
       setMessages((prev) => [
         ...prev,
-        { id: `asst-${Date.now()}`, role: "assistant", text: answer },
+        { id: assistantId, role: "assistant", text: answer },
       ]);
     } catch {
+      const errorId = `err-${Date.now()}`;
+      setLatestAssistantId(errorId);
       setMessages((prev) => [
         ...prev,
         {
-          id: `err-${Date.now()}`,
+          id: errorId,
           role: "assistant",
           text: "Something went wrong reaching the server. Please try again.",
         },
@@ -188,6 +273,147 @@ export default function ChatPage() {
 
   const hasMessages = messages.length > 0;
 
+  useEffect(() => {
+    if (!authLoading && !user) {
+      window.location.replace("/");
+    }
+  }, [user, authLoading]);
+
+  if (authLoading) {
+    return (
+      <div className="flex h-screen items-center justify-center bg-background">
+        <div className="h-10 w-10 animate-spin rounded-full border-2 border-neon/20 border-t-neon" />
+      </div>
+    );
+  }
+
+  if (!user) return null;
+
+  // Show project selector if no project is selected
+  if (!selectedProject) {
+    return (
+      <AppLayout>
+        <div className="p-8">
+          <motion.div
+            className="mb-10"
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.4, ease: "easeOut" }}
+          >
+            <h1 className="text-2xl font-semibold text-foreground">
+              Chat with Code
+            </h1>
+            <p className="mt-1 text-sm text-muted">
+              Select a project to chat about your code
+            </p>
+          </motion.div>
+
+          {/* Loading state */}
+          {loadingProjects && (
+            <motion.div
+              className="flex items-center justify-center py-20"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+            >
+              <div className="h-8 w-8 animate-spin rounded-full border-2 border-neon/20 border-t-neon" />
+            </motion.div>
+          )}
+
+          {/* Empty state */}
+          {!loadingProjects && projects.length === 0 && (
+            <motion.div
+              className="flex flex-col items-center justify-center rounded-xl border border-border bg-surface px-8 py-20"
+              initial={{ opacity: 0, scale: 0.98 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={{ delay: 0.15, duration: 0.4, ease: "easeOut" }}
+            >
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                width="40"
+                height="40"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                className="mb-4 text-muted"
+              >
+                <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
+              </svg>
+              <p className="text-sm font-medium text-foreground">
+                No projects yet
+              </p>
+              <p className="mt-1 text-xs text-muted">
+                Create your first code project to start chatting
+              </p>
+              <motion.a
+                href="/upload"
+                className="mt-5 rounded-lg bg-neon px-5 py-2 text-sm font-semibold text-black transition-all hover:bg-neon/90"
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+              >
+                Create Project
+              </motion.a>
+            </motion.div>
+          )}
+
+          {/* Projects grid */}
+          {!loadingProjects && projects.length > 0 && (
+            <motion.div
+              className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3"
+              initial={{ opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.15, duration: 0.4, ease: "easeOut" }}
+            >
+              {projects.map((project, index) => (
+                <motion.button
+                  key={project.id}
+                  onClick={() => router.push(`/chat?project=${project.id}`)}
+                  className="group relative overflow-hidden rounded-xl border border-border bg-surface p-6 text-left transition-all hover:border-neon/30"
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.1 * index, duration: 0.3 }}
+                  whileHover={{ y: -2 }}
+                >
+                  {/* Source badge */}
+                  <div className="mb-3 flex items-center gap-2 rounded-full border border-border bg-background px-2.5 py-1 text-xs text-muted w-fit">
+                    {project.source === "github" ? (
+                      <>
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+                          <path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/>
+                        </svg>
+                        GitHub
+                      </>
+                    ) : (
+                      <>
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <polyline points="16 18 22 12 16 6" />
+                          <polyline points="8 6 2 12 8 18" />
+                        </svg>
+                        Text
+                      </>
+                    )}
+                  </div>
+
+                  {/* Project name */}
+                  <h3 className="mb-2 text-lg font-semibold text-foreground">
+                    {project.name}
+                  </h3>
+
+                  {/* Created date */}
+                  <p className="text-xs text-muted">
+                    Created {new Date(project.createdAt).toLocaleDateString()}
+                  </p>
+                </motion.button>
+              ))}
+            </motion.div>
+          )}
+        </div>
+      </AppLayout>
+    );
+  }
+
   return (
     <AppLayout>
       <div className="relative flex h-full flex-col p-8">
@@ -202,13 +428,21 @@ export default function ChatPage() {
           transition={{ duration: 0.4, ease: "easeOut" }}
         >
           <div>
-            <h1 className="text-2xl font-semibold text-foreground">
-              Chat with Code
-            </h1>
+            <div className="flex items-center gap-3">
+              <h1 className="text-2xl font-semibold text-foreground">
+                {selectedProject.name}
+              </h1>
+              <motion.button
+                onClick={() => router.push("/chat")}
+                className="rounded-lg border border-border px-2.5 py-1 text-xs text-muted transition-colors hover:border-neon/30 hover:text-foreground"
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+              >
+                Change Project
+              </motion.button>
+            </div>
             <p className="mt-1 text-sm text-muted">
-              {repoId
-                ? "Ask questions about your uploaded repository."
-                : "Upload a repository to chat about code, or ask general questions."}
+              Ask questions about your code
             </p>
           </div>
           {hasMessages && (
@@ -279,22 +513,29 @@ export default function ChatPage() {
                 </div>
               </div>
             ) : (
-              messages.map((msg) => (
-                <div
-                  key={msg.id}
-                  className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}
-                >
+              messages.map((msg) => {
+                const isLatestAssistant = msg.role === "assistant" && msg.id === latestAssistantId;
+                return (
                   <div
-                    className={`max-w-[75%] rounded-xl px-4 py-2.5 text-sm leading-relaxed ${
-                      msg.role === "user"
-                        ? "bg-neon/15 text-foreground"
-                        : "bg-surface-hover text-foreground"
-                    }`}
+                    key={msg.id}
+                    className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}
                   >
-                    <MessageContent text={msg.text} />
+                    <div
+                      className={`max-w-[75%] rounded-xl px-4 py-2.5 text-sm leading-relaxed ${
+                        msg.role === "user"
+                          ? "bg-neon/15 text-foreground"
+                          : "bg-surface-hover text-foreground"
+                      }`}
+                    >
+                      {isLatestAssistant ? (
+                        <MessageContentTyping text={msg.text} />
+                      ) : (
+                        <MessageContent text={msg.text} />
+                      )}
+                    </div>
                   </div>
-                </div>
-              ))
+                );
+              })
             )}
 
             {loading && (
@@ -336,5 +577,19 @@ export default function ChatPage() {
         </motion.div>
       </div>
     </AppLayout>
+  );
+}
+
+export default function ChatPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex h-screen items-center justify-center bg-background">
+          <div className="h-10 w-10 animate-spin rounded-full border-2 border-neon/20 border-t-neon" />
+        </div>
+      }
+    >
+      <ChatPageContent />
+    </Suspense>
   );
 }

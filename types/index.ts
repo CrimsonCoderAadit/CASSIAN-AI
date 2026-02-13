@@ -5,6 +5,9 @@
 /** Supported ingestion sources */
 export type UploadSource = "github" | "zip";
 
+/** Project source types */
+export type ProjectSource = "github" | "text";
+
 /** Metadata about an uploaded repository */
 export interface RepoMetadata {
   id: string;
@@ -93,4 +96,19 @@ export interface ApiResponse<T = unknown> {
   success: boolean;
   data?: T;
   error?: string;
+}
+
+/** Code Project stored in Firestore */
+export interface Project {
+  id: string;
+  userId: string;
+  name: string;
+  source: ProjectSource;
+  githubUrl?: string;
+  rawCode?: string;
+  createdAt: string; // ISO-8601
+  parsedFiles?: ParsedFile[];
+  chunks?: FileChunk[];
+  summary?: string;
+  architecture?: string;
 }

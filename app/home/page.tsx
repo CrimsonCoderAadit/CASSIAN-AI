@@ -4,6 +4,7 @@ import { useEffect, useRef } from "react";
 import { motion } from "framer-motion";
 import AppLayout from "@/components/Layout";
 import { useTheme } from "@/context/ThemeContext";
+import { useAuth } from "@/context/AuthContext";
 
 // ── Constellation easter egg ─────────────────────────────────
 
@@ -130,6 +131,16 @@ const cardVariants = {
 // ── Page ─────────────────────────────────────────────────────
 
 export default function HomePage() {
+  const { user, loading } = useAuth();
+
+  useEffect(() => {
+    if (!loading && !user) {
+      window.location.replace("/");
+    }
+  }, [user, loading]);
+
+  if (!user) return null;
+
   return (
     <AppLayout>
       <div className="relative p-8">

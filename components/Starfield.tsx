@@ -14,7 +14,7 @@ interface Star {
   vy: number;
 }
 
-const STAR_COUNT = 90;
+const STAR_COUNT = 150;
 const DRIFT_SPEED = 0.08;
 
 export default function Starfield() {
