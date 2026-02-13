@@ -42,8 +42,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const signInWithGoogle = useCallback(async () => {
-    await signInWithPopup(auth, googleProvider);
+    try {
+      await signInWithPopup(auth, googleProvider);
+    } catch (error: any) {
+      // Ignore harmless popup errors
+      if (
+        error?.code === "auth/popup-blocked" ||
+        error?.code === "auth/cancelled-popup-request"
+      ) {
+        console.warn("Popup retry handled silently");
+        return;
+      }
+
+      console.error("Google Sign-in error:", error);
+      throw error;
+    }
   }, []);
+
 
   const signOut = useCallback(async () => {
     try {

@@ -6,7 +6,7 @@
 export type UploadSource = "github" | "zip";
 
 /** Project source types */
-export type ProjectSource = "github" | "text";
+export type ProjectSource = "github" | "text" | "zip";
 
 /** Metadata about an uploaded repository */
 export interface RepoMetadata {

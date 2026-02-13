@@ -1,131 +1,225 @@
 "use client";
 
-import { useEffect, useRef, useCallback } from "react";
+import { useEffect, useRef } from "react";
 import { useTheme } from "@/context/ThemeContext";
+import { useAppearance } from "@/context/AppearanceContext";
 
 interface Star {
   x: number;
   y: number;
-  radius: number;
+  size: number;
+  opacity: number;
   baseOpacity: number;
-  twinkleSpeed: number;
-  twinkleOffset: number;
   vx: number;
   vy: number;
+  twinkleSpeed: number;
+  twinklePhase: number;
+  color: string;
 }
 
-const STAR_COUNT = 150;
-const DRIFT_SPEED = 0.08;
+// Theme-specific configurations
+const THEME_CONFIGS = {
+  // Dark mode: White + Cyan glow
+  dark: {
+    colors: ["#FFFFFF", "#7DF9FF"],
+    speed: 1,
+    count: 150,
+    glowIntensity: 0.6,
+  },
+  // Light mode: Soft Blue + Silver (lower glow)
+  light: {
+    colors: ["#9AD0FF", "#E6E6E6"],
+    speed: 1,
+    count: 120,
+    glowIntensity: 0.3,
+  },
+};
+
+// Visual mode configurations
+const VISUAL_MODE_CONFIGS = {
+  default: {
+    colors: ["#FFFFFF", "#7DF9FF"],
+    speed: 1,
+    count: 150,
+    glowIntensity: 0.6,
+  },
+  // Cyberpunk: Electric Blue + Neon Pink, faster movement, pulse glow
+  cyberpunk: {
+    colors: ["#00F5FF", "#FF2D9A"],
+    speed: 1.5,
+    count: 180,
+    glowIntensity: 0.8,
+  },
+  minimal: {
+    colors: ["#FFFFFF", "#7DF9FF"],
+    speed: 1,
+    count: 100,
+    glowIntensity: 0.4,
+  },
+  // Cosmic (Aurora): Green + Soft White, very slow drifting
+  cosmic: {
+    colors: ["#00FFB3", "#FFFFFF"],
+    speed: 0.5,
+    count: 140,
+    glowIntensity: 0.5,
+  },
+  // Matrix: Green digital sparks, flicker animation
+  matrix: {
+    colors: ["#00FF41"],
+    speed: 1,
+    count: 200,
+    glowIntensity: 0.4,
+  },
+};
 
 export default function Starfield() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const { theme } = useTheme();
   const starsRef = useRef<Star[]>([]);
-  const animRef = useRef<number>(0);
-
-  const createStars = useCallback((w: number, h: number) => {
-    const stars: Star[] = [];
-    for (let i = 0; i < STAR_COUNT; i++) {
-      stars.push({
-        x: Math.random() * w,
-        y: Math.random() * h,
-        radius: Math.random() * 1.2 + 0.3,
-        baseOpacity: Math.random() * 0.5 + 0.15,
-        twinkleSpeed: Math.random() * 0.02 + 0.005,
-        twinkleOffset: Math.random() * Math.PI * 2,
-        vx: (Math.random() - 0.5) * DRIFT_SPEED,
-        vy: (Math.random() - 0.5) * DRIFT_SPEED,
-      });
-    }
-    starsRef.current = stars;
-  }, []);
+  const animationFrameRef = useRef<number | undefined>(undefined);
+  const { theme } = useTheme();
+  const { visualMode } = useAppearance();
 
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
 
-    const ctx = canvas.getContext("2d");
+    const ctx = canvas.getContext("2d", { alpha: true });
     if (!ctx) return;
 
-    let w = window.innerWidth;
-    let h = window.innerHeight;
+    // Set canvas size
+    const updateCanvasSize = () => {
+      canvas.width = window.innerWidth;
+      canvas.height = window.innerHeight;
+    };
+    updateCanvasSize();
+    window.addEventListener("resize", updateCanvasSize);
 
-    function resize() {
-      w = window.innerWidth;
-      h = window.innerHeight;
-      canvas!.width = w;
-      canvas!.height = h;
-      if (starsRef.current.length === 0) {
-        createStars(w, h);
+    // Get theme config
+    const getConfig = () => {
+      // Visual mode takes precedence over theme
+      if (visualMode && visualMode !== "default" && visualMode in VISUAL_MODE_CONFIGS) {
+        return VISUAL_MODE_CONFIGS[visualMode as keyof typeof VISUAL_MODE_CONFIGS];
       }
-    }
+      return THEME_CONFIGS[theme as keyof typeof THEME_CONFIGS] || THEME_CONFIGS.dark;
+    };
 
-    resize();
-    if (starsRef.current.length === 0) {
-      createStars(w, h);
-    }
+    // Initialize stars
+    const initStars = () => {
+      const config = getConfig();
+      const stars: Star[] = [];
 
-    const isDark = theme === "dark";
-    // Stars are white in dark mode, light gray in light mode
-    const starR = isDark ? 255 : 120;
-    const starG = isDark ? 255 : 120;
-    const starB = isDark ? 255 : 120;
+      for (let i = 0; i < config.count; i++) {
+        const color = config.colors[Math.floor(Math.random() * config.colors.length)];
+        stars.push({
+          x: Math.random() * canvas.width,
+          y: Math.random() * canvas.height,
+          size: 1 + Math.random() * 2, // 1-3px random size
+          opacity: 0.3 + Math.random() * 0.7,
+          baseOpacity: 0.3 + Math.random() * 0.7,
+          vx: (Math.random() - 0.5) * 0.3 * config.speed,
+          vy: (Math.random() - 0.5) * 0.3 * config.speed,
+          twinkleSpeed: 0.01 + Math.random() * 0.02,
+          twinklePhase: Math.random() * Math.PI * 2,
+          color,
+        });
+      }
 
-    let frame = 0;
+      starsRef.current = stars;
+    };
 
-    function draw() {
-      if (!ctx) return;
-      ctx.clearRect(0, 0, w, h);
+    initStars();
 
-      frame++;
-      const stars = starsRef.current;
+    // Animation loop
+    let lastTime = Date.now();
+    const animate = () => {
+      const now = Date.now();
+      const deltaTime = Math.min((now - lastTime) / 16.67, 2); // Cap at 2x normal speed
+      lastTime = now;
 
-      for (const s of stars) {
-        // Drift
-        s.x += s.vx;
-        s.y += s.vy;
-        if (s.x < -2) s.x = w + 2;
-        if (s.x > w + 2) s.x = -2;
-        if (s.y < -2) s.y = h + 2;
-        if (s.y > h + 2) s.y = -2;
+      const config = getConfig();
+      const isMatrix = visualMode === "matrix";
+      const isCyberpunk = visualMode === "cyberpunk";
 
-        // Twinkle
-        const twinkle = Math.sin(frame * s.twinkleSpeed + s.twinkleOffset);
-        const opacity = s.baseOpacity + twinkle * 0.2;
-        const clampedOpacity = Math.max(0.03, Math.min(0.7, opacity));
+      // Clear canvas
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-        // Core dot
+      // Update and draw stars
+      starsRef.current.forEach((star) => {
+        // Update position (floating motion)
+        star.x += star.vx * deltaTime;
+        star.y += star.vy * deltaTime;
+
+        // Wrap around edges
+        if (star.x < 0) star.x = canvas.width;
+        if (star.x > canvas.width) star.x = 0;
+        if (star.y < 0) star.y = canvas.height;
+        if (star.y > canvas.height) star.y = 0;
+
+        // Update twinkle (occasional twinkle effect)
+        star.twinklePhase += star.twinkleSpeed * deltaTime;
+        const twinkle = Math.sin(star.twinklePhase) * 0.3 + 0.7;
+        star.opacity = star.baseOpacity * twinkle;
+
+        // Matrix mode flicker animation
+        if (isMatrix && Math.random() < 0.02) {
+          star.opacity *= Math.random() * 0.5 + 0.5;
+        }
+
+        // Draw star with soft glow
+        const gradient = ctx.createRadialGradient(
+          star.x,
+          star.y,
+          0,
+          star.x,
+          star.y,
+          star.size * 2
+        );
+        gradient.addColorStop(0, star.color);
+        gradient.addColorStop(1, `${star.color}00`);
+
+        ctx.globalAlpha = star.opacity;
+        ctx.fillStyle = gradient;
+        ctx.shadowBlur = star.size * config.glowIntensity * 10;
+        ctx.shadowColor = star.color;
+
         ctx.beginPath();
-        ctx.arc(s.x, s.y, s.radius, 0, Math.PI * 2);
-        ctx.fillStyle = `rgba(${starR},${starG},${starB},${clampedOpacity})`;
+        ctx.arc(star.x, star.y, star.size, 0, Math.PI * 2);
         ctx.fill();
 
-        // Soft glow halo
-        if (clampedOpacity > 0.3) {
+        // Cyberpunk occasional pulse glow
+        if (isCyberpunk && Math.random() < 0.01) {
+          ctx.shadowBlur = star.size * 20;
           ctx.beginPath();
-          ctx.arc(s.x, s.y, s.radius * 2.5, 0, Math.PI * 2);
-          ctx.fillStyle = `rgba(${starR},${starG},${starB},${clampedOpacity * 0.08})`;
+          ctx.arc(star.x, star.y, star.size * 1.5, 0, Math.PI * 2);
           ctx.fill();
         }
-      }
+      });
 
-      animRef.current = requestAnimationFrame(draw);
-    }
+      ctx.globalAlpha = 1;
+      ctx.shadowBlur = 0;
 
-    draw();
-
-    window.addEventListener("resize", resize);
-    return () => {
-      cancelAnimationFrame(animRef.current);
-      window.removeEventListener("resize", resize);
+      animationFrameRef.current = requestAnimationFrame(animate);
     };
-  }, [theme, createStars]);
+
+    animate();
+
+    // Cleanup
+    return () => {
+      if (animationFrameRef.current) {
+        cancelAnimationFrame(animationFrameRef.current);
+      }
+      window.removeEventListener("resize", updateCanvasSize);
+    };
+  }, [theme, visualMode]);
 
   return (
     <canvas
       ref={canvasRef}
       className="pointer-events-none fixed inset-0 z-0"
-      style={{ width: "100vw", height: "100vh" }}
+      style={{
+        width: "100%",
+        height: "100%",
+      }}
       aria-hidden="true"
     />
   );

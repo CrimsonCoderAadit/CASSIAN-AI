@@ -1,6 +1,5 @@
 "use client";
 
-import { useState, useRef } from "react";
 import { motion } from "framer-motion";
 import AppLayout from "@/components/Layout";
 import { useAppearance, VisualMode } from "@/context/AppearanceContext";
@@ -47,51 +46,7 @@ export default function ProfilePage() {
   const {
     visualMode,
     setVisualMode,
-    customBackground,
-    setCustomBackground,
-    backgroundOpacity,
-    setBackgroundOpacity,
   } = useAppearance();
-
-  const [uploadPreview, setUploadPreview] = useState<string | null>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
-
-  function handleFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      const result = event.target?.result as string;
-      setUploadPreview(result);
-    };
-    reader.readAsDataURL(file);
-  }
-
-  function handleApplyBackground() {
-    if (uploadPreview) {
-      setCustomBackground(uploadPreview);
-      setUploadPreview(null);
-    }
-  }
-
-  function handleResetBackground() {
-    setCustomBackground(null);
-    setUploadPreview(null);
-  }
-
-  function handleDrop(e: React.DragEvent) {
-    e.preventDefault();
-    const file = e.dataTransfer.files?.[0];
-    if (!file || !file.type.startsWith("image/")) return;
-
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      const result = event.target?.result as string;
-      setUploadPreview(result);
-    };
-    reader.readAsDataURL(file);
-  }
 
   return (
     <AppLayout>
@@ -169,140 +124,6 @@ export default function ProfilePage() {
                 </motion.button>
               );
             })}
-          </div>
-        </motion.div>
-
-        {/* Custom Background Section */}
-        <motion.div
-          className="mt-8"
-          initial={{ opacity: 0, y: 16 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.4, delay: 0.2 }}
-        >
-          <h2 className="text-lg font-semibold text-foreground">Custom Background</h2>
-          <p className="mt-1 text-xs text-muted">
-            Upload your own background image to personalize the interface.
-          </p>
-
-          <div className="mt-4 space-y-4">
-            {/* Upload Area */}
-            <div
-              onDrop={handleDrop}
-              onDragOver={(e) => e.preventDefault()}
-              onClick={() => fileInputRef.current?.click()}
-              className="cursor-pointer rounded-xl border-2 border-dashed border-border bg-surface p-8 text-center transition-colors hover:border-neon/30 hover:bg-surface-hover"
-            >
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept="image/*"
-                onChange={handleFileSelect}
-                className="hidden"
-              />
-              <div className="flex flex-col items-center gap-3">
-                <svg
-                  width="40"
-                  height="40"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="1.5"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  className="text-muted"
-                >
-                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-                  <polyline points="17 8 12 3 7 8" />
-                  <line x1="12" x2="12" y1="3" y2="15" />
-                </svg>
-                <div>
-                  <p className="text-sm font-medium text-foreground">
-                    Click to upload or drag and drop
-                  </p>
-                  <p className="mt-1 text-xs text-muted">PNG, JPG, WEBP up to 10MB</p>
-                </div>
-              </div>
-            </div>
-
-            {/* Preview */}
-            {uploadPreview && (
-              <motion.div
-                className="rounded-xl border border-border bg-surface p-4"
-                initial={{ opacity: 0, scale: 0.95 }}
-                animate={{ opacity: 1, scale: 1 }}
-              >
-                <p className="mb-2 text-xs font-medium text-muted">Preview:</p>
-                <div className="relative h-40 overflow-hidden rounded-lg">
-                  <img
-                    src={uploadPreview}
-                    alt="Preview"
-                    className="h-full w-full object-cover"
-                  />
-                </div>
-                <div className="mt-3 flex gap-2">
-                  <button
-                    onClick={handleApplyBackground}
-                    className="flex-1 rounded-lg bg-neon/20 px-4 py-2 text-sm font-semibold text-neon transition-colors hover:bg-neon/30"
-                  >
-                    Apply Background
-                  </button>
-                  <button
-                    onClick={() => setUploadPreview(null)}
-                    className="rounded-lg border border-border px-4 py-2 text-sm font-medium text-muted transition-colors hover:bg-surface-hover"
-                  >
-                    Cancel
-                  </button>
-                </div>
-              </motion.div>
-            )}
-
-            {/* Current Background */}
-            {customBackground && !uploadPreview && (
-              <motion.div
-                className="rounded-xl border border-border bg-surface p-4"
-                initial={{ opacity: 0, scale: 0.95 }}
-                animate={{ opacity: 1, scale: 1 }}
-              >
-                <p className="mb-2 text-xs font-medium text-muted">Current Background:</p>
-                <div className="relative h-40 overflow-hidden rounded-lg">
-                  <img
-                    src={customBackground}
-                    alt="Current background"
-                    className="h-full w-full object-cover"
-                  />
-                </div>
-                <button
-                  onClick={handleResetBackground}
-                  className="mt-3 w-full rounded-lg border border-border px-4 py-2 text-sm font-medium text-muted transition-colors hover:bg-surface-hover"
-                >
-                  Reset to Default
-                </button>
-              </motion.div>
-            )}
-
-            {/* Background Opacity */}
-            {customBackground && (
-              <motion.div
-                className="rounded-xl border border-border bg-surface p-4"
-                initial={{ opacity: 0, scale: 0.95 }}
-                animate={{ opacity: 1, scale: 1 }}
-              >
-                <label className="block">
-                  <span className="text-xs font-medium text-muted">
-                    Background Opacity: {Math.round(backgroundOpacity * 100)}%
-                  </span>
-                  <input
-                    type="range"
-                    min="0"
-                    max="1"
-                    step="0.05"
-                    value={backgroundOpacity}
-                    onChange={(e) => setBackgroundOpacity(parseFloat(e.target.value))}
-                    className="mt-2 w-full accent-neon"
-                  />
-                </label>
-              </motion.div>
-            )}
           </div>
         </motion.div>
       </div>
